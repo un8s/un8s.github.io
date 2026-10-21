@@ -1,0 +1,105 @@
+/* Blog styles. The colour tokens mirror the ones inlined in /index.html;
+   keep the two in step when changing either. */
+:root {
+  --bg: #0d1117; --fg: #e6edf3; --muted: #8b949e;
+  --line: #21262d; --card: #10151d; --off: #1b2230;
+  --accent: #f5b83d; --code: #e6edf3;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #ffffff; --fg: #1f2328; --muted: #59636e;
+    --line: #d1d9e0; --card: #f6f8fa; --off: #ebedf0;
+    --accent: #d99a1e; --code: #1f2328;
+    color-scheme: light;
+  }
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+.mono, code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas,
+  "DejaVu Sans Mono", "Liberation Mono", monospace; }
+
+/* Site bar, with the accent line along the top edge of the page. */
+.top { border-top: 3px solid var(--accent); border-bottom: 1px solid var(--line); }
+.top nav {
+  max-width: 44rem; margin: 0 auto; padding: .9rem 1rem;
+  display: flex; align-items: baseline; gap: 1.25rem;
+}
+.top a { color: var(--muted); text-decoration: none; }
+.top a:hover, .top a[aria-current] { color: var(--fg); }
+.top .home { color: var(--fg); font-weight: 700; font-size: 1.125rem; margin-right: auto; }
+
+main { max-width: 44rem; margin: 0 auto; padding: 3rem 1rem 3rem; }
+
+a { color: inherit; text-decoration-color: var(--accent); text-underline-offset: 3px; }
+a:hover { text-decoration-thickness: 2px; }
+
+h1 { margin: 0; font-size: 2.25rem; line-height: 1.2; letter-spacing: -.015em; }
+.lede { margin: .75rem 0 0; color: var(--muted); font-size: 1.125rem; }
+.date { color: var(--muted); font-size: .875rem; }
+
+/* Post list. */
+.posts { list-style: none; margin: 2.5rem 0 0; padding: 0; display: grid; gap: 1rem; }
+.posts li {
+  position: relative; padding: 1.25rem;
+  background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+  transition: border-color .2s;
+}
+.posts li:hover { border-color: var(--accent); }
+.posts h2 { margin: .15rem 0 0; font-size: 1.25rem; line-height: 1.35; }
+.posts h2 a { text-decoration: none; }
+.posts h2 a::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
+.posts h2 a:focus-visible { outline: none; }
+.posts li:has(a:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.posts p { margin: .35rem 0 0; }
+
+/* Article body. */
+article header { margin-bottom: 2.5rem; }
+article header .date { margin: 0 0 .5rem; }
+.prose { font-size: 1.0625rem; line-height: 1.7; }
+.prose h2 { margin: 2.75rem 0 .75rem; font-size: 1.375rem; line-height: 1.3; }
+.prose p, .prose ul, .prose ol { margin: 0 0 1.1rem; }
+.prose li { margin: .3rem 0; }
+.prose code {
+  font-size: .875em; padding: .1em .35em;
+  background: var(--card); border: 1px solid var(--line); border-radius: 5px;
+}
+.prose pre {
+  margin: 0 0 1.4rem; padding: 1rem 1.1rem; overflow-x: auto;
+  background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  font-size: .8125rem; line-height: 1.55; color: var(--code);
+}
+.prose pre code { padding: 0; background: none; border: 0; font-size: inherit; }
+.prose blockquote {
+  margin: 0 0 1.4rem; padding: .1rem 0 .1rem 1rem;
+  border-left: 3px solid var(--accent); color: var(--muted);
+}
+.prose table { width: 100%; margin: 0 0 1.4rem; border-collapse: collapse; font-size: .9375rem; }
+.prose th, .prose td { padding: .45rem .6rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.prose th { color: var(--muted); font-weight: 600; }
+.table-wrap { overflow-x: auto; }
+
+/* Diagrams are inline SVG that draw with these classes, so they follow the theme. */
+figure { margin: 0 0 1.6rem; }
+figure svg { display: block; width: 100%; height: auto; }
+figcaption { margin-top: .5rem; color: var(--muted); font-size: .875rem; }
+.dg-box { fill: var(--card); stroke: var(--line); stroke-width: 1.5; }
+.dg-key { fill: var(--card); stroke: var(--accent); stroke-width: 1.5; }
+.dg-line { stroke: var(--muted); stroke-width: 1.5; fill: none; }
+.dg-head { fill: var(--muted); }
+.dg-text { fill: var(--fg); font: 13px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+.dg-mono { fill: var(--fg); font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.dg-note { fill: var(--muted); font: 12px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+
+footer { max-width: 44rem; margin: 0 auto; padding: 0 1rem 3rem; color: var(--muted); font-size: .875rem; }
+footer a { text-decoration-color: var(--line); }
+footer a:hover { color: var(--fg); }
+
+@media (max-width: 34rem) {
+  main { padding-top: 2rem; }
+  h1 { font-size: 1.75rem; }
+}

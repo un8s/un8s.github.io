@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Runtime UI translation with a small LLM and an editable cache · un8s</title>
+<meta name="description" content="A pattern for translating an application's interface without message catalogs: English strings as keys, a small model that fills a per-language cache on first use, and guards that reject bad output.">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Runtime UI translation with a small LLM and an editable cache">
+<meta property="og:description" content="A pattern for translating an application's interface without message catalogs: English strings as keys, a small model that fills a per-language cache on first use, and guards that reject bad output.">
+<meta property="og:url" content="https://un8s.com/blog/llm-ui-translation/">
+<meta property="og:image" content="https://un8s.com/un8s.png">
+<meta property="article:published_time" content="2026-10-21">
+<meta name="twitter:card" content="summary">
+<meta name="theme-color" content="#0d1117" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="alternate" type="application/atom+xml" title="un8s blog" href="/blog/feed.xml">
+<link rel="stylesheet" href="/blog/style.css">
+</head>
+<body>
+<header class="top">
+  <nav>
+    <a class="home mono" href="/">un8s</a>
+    <a href="/blog/">Blog</a>
+    <a href="/blog/feed.xml">Feed</a>
+  </nav>
+</header>
+<main>
+<article>
+  <header>
+    <p class="date"><time datetime="2026-10-21">21 October 2026</time> · <a href="https://github.com/un8s/mmxc">mmxc</a></p>
+    <h1>Runtime UI translation with a small LLM and an editable cache</h1>
+    <p class="lede">A pattern for translating an application’s interface
+      without message catalogs: English strings as keys, a small model that
+      fills a per-language cache on first use, and guards that reject bad
+      output.</p>
+  </header>
+
+  <div class="prose">
+    <p>The worked example is <a href="https://github.com/un8s/mmxc">mmxc</a>,
+      a self-hosted personal-finance app: a Go server rendering
+      <code>html/template</code> pages, which already calls an
+      OpenAI-compatible LLM endpoint for statement import and a question
+      assistant. Its interface runs in French and German this way. The code
+      shown is Go, but nothing in the pattern depends on it.</p>
+
+    <h2>The problem with message catalogs</h2>
+    <p>Classic i18n extracts every literal into a catalog keyed by stable ids
+      (<code>accounts.title</code>), and each language gets its own copy with
+      translated values. The cost has two parts:</p>
+    <ul>
+      <li><strong>Extraction</strong>, a one-off: every user-visible string is
+        wrapped in a lookup call. In mmxc that was about 400 template strings,
+        36 Go messages and a dozen JavaScript strings.</li>
+      <li><strong>Maintenance</strong>, which never ends: every change to the
+        English must reach every language file. That needs translators.</li>
+    </ul>
+    <p>The extraction can’t be avoided. The maintenance can, if the catalog is
+      filled by a model on demand instead of by people up front. The catalog
+      survives as a plain file a person can still correct, so the design
+      differs from the classic one only in <em>who writes the
+      values</em>.</p>
+
+    <h2>Architecture</h2>
+    <figure>
+      <svg viewBox="0 0 680 290" role="img" aria-labelledby="flow-title flow-desc">
+        <title id="flow-title">Translation lookup flow</title>
+        <desc id="flow-desc">A template asks for a string. The cache is checked first: a hit
+          returns the translation. A miss calls a small model; its answer goes through guards
+          and, if it passes, is stored in the language file and shown. A model error or a
+          rejected answer shows the English source instead.</desc>
+        <defs>
+          <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path class="dg-head" d="M0 0L10 5L0 10z"/>
+          </marker>
+        </defs>
+
+        <rect class="dg-box" x="10" y="30" width="180" height="62" rx="8"/>
+        <text class="dg-text" x="100" y="55" text-anchor="middle">template / Go code</text>
+        <text class="dg-mono" x="100" y="77" text-anchor="middle">.T "Balance" "…"</text>
+
+        <rect class="dg-key" x="250" y="30" width="180" height="62" rx="8"/>
+        <text class="dg-text" x="340" y="55" text-anchor="middle">cache lookup</text>
+        <text class="dg-mono" x="340" y="77" text-anchor="middle">fr.json</text>
+
+        <rect class="dg-box" x="490" y="30" width="180" height="62" rx="8"/>
+        <text class="dg-text" x="580" y="66" text-anchor="middle">translated text</text>
+
+        <rect class="dg-box" x="250" y="160" width="180" height="62" rx="8"/>
+        <text class="dg-text" x="340" y="185" text-anchor="middle">small model</text>
+        <text class="dg-note" x="340" y="206" text-anchor="middle">JSON mode · temperature 0</text>
+
+        <rect class="dg-box" x="490" y="160" width="180" height="62" rx="8"/>
+        <text class="dg-text" x="580" y="185" text-anchor="middle">guards</text>
+        <text class="dg-note" x="580" y="206" text-anchor="middle">placeholders · length</text>
+
+        <rect class="dg-box" x="10" y="160" width="180" height="62" rx="8"/>
+        <text class="dg-text" x="100" y="196" text-anchor="middle">English source</text>
+
+        <path class="dg-line" d="M190 61H248" marker-end="url(#ah)"/>
+        <path class="dg-line" d="M430 61H488" marker-end="url(#ah)"/>
+        <text class="dg-note" x="459" y="52" text-anchor="middle">hit</text>
+
+        <path class="dg-line" d="M340 92V158" marker-end="url(#ah)"/>
+        <text class="dg-note" x="350" y="130">miss</text>
+
+        <path class="dg-line" d="M430 191H488" marker-end="url(#ah)"/>
+
+        <path class="dg-line" d="M580 160V94" marker-end="url(#ah)"/>
+        <text class="dg-note" x="570" y="122" text-anchor="end">pass: save, show</text>
+
+        <path class="dg-line" d="M250 191H192" marker-end="url(#ah)"/>
+        <text class="dg-note" x="221" y="182" text-anchor="middle">error</text>
+
+        <path class="dg-line" d="M580 222V256H100V224" marker-end="url(#ah)"/>
+        <text class="dg-note" x="340" y="276" text-anchor="middle">rejected (not cached, retried next time)</text>
+      </svg>
+      <figcaption>Every visible string takes this path. Once a language has
+        been warmed, every lookup is a cache hit.</figcaption>
+    </figure>
+    <p>Five parts:</p>
+    <ul>
+      <li><strong>One lookup function</strong>, used wherever text is rendered:
+        <code>T(source, context)</code>. For the source language it returns
+        the source unchanged and never calls a model.</li>
+      <li><strong>A cache per language</strong>: a map in memory, backed by one
+        JSON file on disk.</li>
+      <li><strong>A model call on a miss</strong>: one string per request,
+        temperature 0, JSON output, to a small translation model
+        (<code>translategemma:4b</code>). It is configured separately from the
+        larger general model the rest of the app uses.</li>
+      <li><strong>Guards</strong> that decide whether an answer may enter the
+        cache.</li>
+      <li><strong>A fallback</strong>: on any failure, the English source is
+        shown. The model can make the interface worse in one way only, by
+        leaving a string untranslated.</li>
+    </ul>
+    <p>In a template:</p>
+<pre><code>&lt;th&gt;{{.T "Balance" "running account balance after this transaction"}}&lt;/th&gt;</code></pre>
+    <p>The lookup, condensed. The lock is not held during the model call, so
+      two requests can translate the same string at once. The second one to
+      finish finds the first one’s entry and uses it, which keeps the cache
+      consistent:</p>
+<pre><code>func (t *translator) get(lang, source, guidance string) string {
+	if lang == "" || lang == "en" {
+		return source
+	}
+	key := translationKey(source, guidance, lang)
+
+	t.mu.Lock()
+	t.ensureCache(lang) // load, or reload if the file changed on disk
+	if e, ok := t.caches[lang][key]; ok {
+		t.mu.Unlock()
+		return e.Translation
+	}
+	t.mu.Unlock()
+
+	if !t.modelConfigured() || !t.aiAvailable() {
+		return source
+	}
+	result, err := t.callTranslate(lang, source, guidance)
+	if err != nil ||
+		!validateTranslationPlaceholders(source, result) ||
+		!plausibleTranslationLength(source, result) {
+		return source // not cached: retried on the next render
+	}
+
+	t.mu.Lock()
+	if e, ok := t.caches[lang][key]; ok { // another request got there first
+		t.mu.Unlock()
+		return e.Translation
+	}
+	t.caches[lang][key] = cacheEntry{source, guidance, result}
+	snapshot := maps.Clone(t.caches[lang])
+	t.mu.Unlock()
+
+	t.saveCacheToDisk(lang, snapshot)
+	return result
+}</code></pre>
+
+    <h2>Keys: the source text plus context</h2>
+    <p>The key is not an invented id. It is a hash of the English source, the
+      context note and the language:</p>
+<pre><code>func translationKey(source, guidance, lang string) string {
+	h := sha256.Sum256([]byte(source + "\x00" + guidance + "\x00" + lang))
+	return hex.EncodeToString(h[:8])
+}</code></pre>
+    <ul>
+      <li><strong>No id catalog.</strong> Code reads as plain English, and
+        nobody has to name or deduplicate keys.</li>
+      <li><strong>Editing the English re-translates.</strong> A changed source
+        hashes to a new key and is translated on its next render. With id keys,
+        an edited English string keeps its old translation without any
+        warning.</li>
+      <li><strong>Identical strings share a translation</strong>, which is
+        almost always right. When it isn’t, the context note separates
+        them.</li>
+      <li><strong>The NUL separators</strong> stop different splits of the
+        fields, such as <code>("ab", "c")</code> and <code>("a",
+        "bc")</code>, from producing the same key.</li>
+      <li><strong>Consequence:</strong> an edited string leaves its old entry
+        behind in the file, unused.</li>
+    </ul>
+
+    <h2>Context for short labels</h2>
+    <p>Sentences translate well with no help. One-word labels don’t, because
+      a word on its own has several meanings. Entries from mmxc’s French
+      cache:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Source</th><th>Context</th><th>French</th></tr></thead>
+        <tbody>
+          <tr><td>Status</td><td><em>none</em></td><td>État</td></tr>
+          <tr><td>Status</td><td>transaction status column heading</td><td>Statut</td></tr>
+          <tr><td>Type</td><td><em>none</em></td><td>Saisir <span class="date">(the verb, “to type”)</span></td></tr>
+          <tr><td>Type</td><td>transaction type column heading</td><td>Type</td></tr>
+          <tr><td>Void</td><td>transaction status</td><td>Annulé</td></tr>
+          <tr><td>Void</td><td>confirm button that marks a transaction void</td><td>Annuler</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>The optional second argument works like gettext’s
+      <code>msgctxt</code>. It is a short note on where the string appears,
+      sent to the model as context and included in the key, so one English
+      word used in two senses gets two cache entries. In mmxc, about 200 of
+      the 466 distinct template strings have one. Context that applies to
+      every string goes in the prompt once instead: the kind of application,
+      and that domain terms win when a word is ambiguous (here, financial and
+      accounting terms).</p>
+    <p>Context chooses a meaning. It cannot make two strings differ from each
+      other. A confirmation dialog with the buttons <em>Void</em> and
+      <em>Cancel</em> came out as <em>Annuler</em> and <em>Annuler</em>. Each
+      was correct on its own, but together they made the destructive button
+      look exactly like the one that dismisses the dialog. More context did
+      not fix it; a longer source did. <em>Void transaction</em> translates to
+      <em>Annuler la transaction</em>.</p>
+    <blockquote>The model translates strings, not screens. When two strings on
+      one screen must stay distinct, make the sources distinct.</blockquote>
+
+    <h2>The prompt: send the string as data</h2>
+    <p><strong>Failure mode.</strong> A prompt made of prose instructions
+      ending in <code>English source string: Translation</code> works for
+      sentences. For a one-word label it breaks: the model cannot tell where
+      the instructions end and the string begins, so it translates the app
+      description or the context line instead. The result is valid text, so
+      it gets cached, and a section heading renders as a paragraph of
+      French.</p>
+    <p><strong>Fix.</strong> The source and its context travel as labelled
+      JSON fields, and the reply comes back as JSON (the API’s
+      <code>response_format: json_object</code>). A bare-text reply invites
+      alternatives, explanations and preambles. The full prompt:</p>
+<pre><code>Translate the "source" field of the JSON object below into French.
+You are translating MMXC, a personal-finance web app for accounts, budgets,
+payees, categories, statements, transactions, deposits, withdrawals,
+transfers, balances, and reconciliation.
+Use financial/accounting terminology where a word is ambiguous.
+Keep UI labels, buttons, table headings, validation messages, and short
+status text concise and natural for software UI.
+Preserve product names and technical names such as MMXC, MMEX, LLM, AI, URL,
+PDF, CSS, JSON, and YYYY-MM-DD unless the target language convention clearly
+localizes them.
+Preserve format placeholders (%s, %d, %.2f, etc.) and named placeholders
+({n}, {cat}, etc.) exactly as they appear.
+The "context" field says where the string appears. Use it only to pick the
+right sense of an ambiguous word: never translate it, never answer it, and
+never add words that appear only in it.
+The translation renders the source alone, so it stays about as short as the
+source.
+Reply with one JSON object: {"translation": "&lt;the translated source&gt;"}
+
+{"context":"running account balance after this transaction","source":"Balance"}</code></pre>
+    <p>Build the payload with a JSON encoder, not string concatenation, so
+      quotes and backslashes in the source can’t break it. Then parse the
+      reply into a struct and reject an empty <code>translation</code>.</p>
+
+    <h2>Output guards</h2>
+    <p>The cache makes every answer permanent, so each answer is checked
+      before it is kept.</p>
+    <p><strong>Format placeholders must match.</strong> Translated strings
+      often go on to <code>fmt.Sprintf</code>. If the model drops or reorders
+      a verb, Go writes <code>%!d(MISSING)</code> into the page. So the
+      translation must contain the same sequence of verbs as the source:</p>
+<pre><code>var placeholderRE = regexp.MustCompile(`%[-+ #0]?[0-9]*(?:\.[0-9]+)?[sdfevqtbxXoOpTU]`)
+
+func validateTranslationPlaceholders(source, translation string) bool {
+	return slices.Equal(placeholderRE.FindAllString(source, -1),
+		placeholderRE.FindAllString(translation, -1))
+}</code></pre>
+    <p><strong>Length must be plausible.</strong> A translation may be at most
+      four times the length of the source plus 24 characters. A model that
+      echoes the prompt or the context exceeds that by an order of magnitude.
+      Normal growth, such as German compounds or French articles, stays well
+      inside it, and the constant slack covers one-word labels.</p>
+<pre><code>func plausibleTranslationLength(source, translation string) bool {
+	return len([]rune(translation)) &lt;= 4*len([]rune(source))+24
+}</code></pre>
+    <p><strong>A rejection is never cached.</strong> The English is shown and
+      the string is tried again on the next render.</p>
+    <p><strong>A dead endpoint costs one probe, not one timeout per
+      string.</strong> Before calling the model, the translator reads the
+      app’s cached health status for the LLM endpoint (a <code>GET
+      /models</code> with a short timeout and a TTL). When the endpoint is
+      down, every miss goes straight to English.</p>
+    <p><strong>Not covered:</strong> named placeholders such as
+      <code>{n}</code> are protected by the prompt only. Extending the check
+      to them is a small change.</p>
+
+    <h2>The cache file is the catalog</h2>
+    <p>Each language is one JSON file. Each entry stores what it translated,
+      so the file explains itself to whoever edits it:</p>
+<pre><code>"b313de732b26d617": {
+  "source": "Balance",
+  "guidance": "running account balance after this transaction",
+  "translation": "Solde"
+}</code></pre>
+    <p>To correct a translation, edit the value. Making edits take effect
+      without a restart takes four details:</p>
+    <ul>
+      <li><strong>Cheap change detection.</strong> A page makes hundreds of
+        lookups, so the file is <code>stat</code>ed at most once a second per
+        language. It is reloaded when its modification time or size changes.</li>
+      <li><strong>The file wins over memory.</strong> Deleting an entry from
+        the file has the string translated again.</li>
+      <li><strong>Atomic saves, with their own stamp.</strong> A save writes a
+        temp file and renames it into place, so a concurrent reload never reads
+        half a file. The save then records the new file’s stamp, so the app
+        does not mistake its own write for an outside edit.</li>
+      <li><strong>Broken JSON keeps the old cache.</strong> If a save happens
+        halfway through a hand edit and the file no longer parses, the
+        translations already in memory stay in use until it does.</li>
+    </ul>
+    <p>A corrected file can be copied to another installation as it is. That
+      is the same workflow as a hand-written catalog, with the model writing
+      the first draft.</p>
+
+    <h2>Strings outside templates</h2>
+    <ul>
+      <li><strong>JavaScript</strong> can’t call the translator. The page head
+        renders the strings the scripts need into a map
+        (<code>window.MMXC_T = {"Loaded {n} models.": "…"}</code>), and the
+        scripts look them up with a small <code>i18n(key)</code> helper.
+        Strings missing from the map stay in English.</li>
+      <li><strong>Native <code>confirm()</code> and <code>alert()</code></strong>
+        ask the question in the app’s language but label their buttons in the
+        browser’s. Replace them with <code>&lt;dialog&gt;</code> elements whose
+        buttons go through <code>T</code> and name the action.</li>
+      <li><strong>Dates</strong> use a display layout per language. Form inputs
+        stay ISO so their values round-trip.</li>
+      <li><strong>Money</strong> follows the currency’s own format (in mmxc,
+        stored in the database), not the UI language.</li>
+      <li><strong>Not translated:</strong> user data (account, category and
+        payee names), and dynamic <code>err.Error()</code> text. Translating
+        errors would put a model call on the error path.</li>
+    </ul>
+
+    <h2>Costs and limits</h2>
+    <ul>
+      <li><strong>The first render of a page in a new language is slow</strong>:
+        one synchronous model call per new string. A whole language takes a few
+        hundred calls, once. Batching the misses on a page into one request is
+        the obvious improvement, and mmxc doesn’t do it yet.</li>
+      <li><strong>No review step.</strong> Each installation translates for
+        itself, and nothing ships in the binary. Quality depends on the model
+        and on how good the context notes are.</li>
+      <li><strong>Orphaned entries</strong> pile up as the English changes.
+        They do no harm, but a cleanup pass would need the set of live
+        keys.</li>
+      <li><strong>Right-to-left languages</strong> get translated text, but the
+        layout is not mirrored.</li>
+    </ul>
+
+    <h2>When to use it</h2>
+    <p>It fits when the application already has an LLM endpoint, each
+      installation has few users, there are no translators, and the interface
+      text has no legal weight. Self-hosted tools and internal apps are the
+      typical case.</p>
+    <p>It doesn’t fit when translations must be reviewed before users see
+      them. There, keep the same pipeline but run it at build time: generate
+      the catalog as a draft, have a person review it, commit it, and ship
+      it.</p>
+
+    <h2>Checklist for reusing the pattern</h2>
+    <ol>
+      <li>One lookup function, <code>T(source, context)</code>, at every
+        rendering site. The source language returns the source unchanged.</li>
+      <li>Key = hash(source, context, language), with separators.</li>
+      <li>Describe the application’s domain once in the prompt. Give a context
+        note to every short or ambiguous label and every string with
+        placeholders.</li>
+      <li>Send the source and context as JSON fields. Ask for a JSON reply at
+        temperature 0.</li>
+      <li>Check placeholders and length. Never cache a rejected answer.</li>
+      <li>Fall back to the source on any error. Gate model calls on a cached
+        health check.</li>
+      <li>Store one plain file per language with self-describing entries.
+        Write atomically, reload on change, and let the file win.</li>
+      <li>Configure the translation model separately from the main model.</li>
+      <li>Where two strings on one screen must differ, make their sources
+        differ.</li>
+      <li>Cover the edges: strings in client-side scripts, native browser
+        dialogs, dates, and number formats.</li>
+      <li>Batch the misses on a page into one request.</li>
+    </ol>
+    <p>Source: <a href="https://github.com/un8s/mmxc/blob/main/internal/mmxc/translate.go"><code>translate.go</code></a>
+      and <a href="https://github.com/un8s/mmxc/blob/main/docs/i18n.md"><code>docs/i18n.md</code></a>
+      in the mmxc repository.</p>
+  </div>
+</article>
+</main>
+<footer>
+  <a href="/blog/">More posts</a> · <a href="https://github.com/un8s">github.com/un8s</a>
+</footer>
+</body>
+</html>

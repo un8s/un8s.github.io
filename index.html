@@ -14,6 +14,7 @@
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="un8s.png">
+<link rel="alternate" type="application/atom+xml" title="un8s blog" href="/blog/feed.xml">
 <style>
   :root {
     --bg: #0d1117; --fg: #e6edf3; --muted: #8b949e;
@@ -83,6 +84,17 @@
   .project p { margin: .35rem 0 0; }
   .project .meta { color: var(--muted); font-size: .875rem; }
 
+  .writing { margin-top: 3.5rem; }
+  .posts { list-style: none; margin: 0; padding: 0; }
+  .posts li { padding: .75rem 0; border-bottom: 1px solid var(--line); }
+  .posts li:first-child { padding-top: 0; }
+  .posts a { color: inherit; font-weight: 600; text-decoration: none; }
+  .posts a:hover { text-decoration: underline; text-decoration-color: var(--a-l); text-underline-offset: 3px; }
+  .posts .meta { display: block; color: var(--muted); font-size: .875rem; }
+  .all { margin: .75rem 0 0; font-size: .875rem; }
+  .all a { color: var(--muted); text-underline-offset: 3px; }
+  .all a:hover { color: var(--fg); }
+
   footer { margin-top: 4rem; color: var(--muted); font-size: .875rem; }
   footer a { color: inherit; text-decoration-color: var(--line); text-underline-offset: 3px; }
   footer a:hover { color: var(--fg); }
@@ -127,6 +139,18 @@
         </div>
       </li>
     </ul>
+  </section>
+
+  <section class="writing gold" aria-labelledby="writing-title">
+    <h2 id="writing-title">Writing</h2>
+    <!-- The latest few posts; the full list is /blog/. -->
+    <ul class="posts">
+      <li>
+        <a href="/blog/llm-ui-translation/">Runtime UI translation with a small LLM and an editable cache</a>
+        <span class="meta"><time datetime="2026-10-21">21 Oct 2026</time> · mmxc</span>
+      </li>
+    </ul>
+    <p class="all"><a href="/blog/">All posts →</a></p>
   </section>
 
   <footer>

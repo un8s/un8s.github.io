@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Hand-maintained. Add a new <entry> at the top and bump <updated>. -->
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>un8s blog</title>
+  <subtitle>Notes on technical and engineering problems met while building the un8s projects.</subtitle>
+  <link href="https://un8s.com/blog/feed.xml" rel="self"/>
+  <link href="https://un8s.com/blog/"/>
+  <id>https://un8s.com/blog/</id>
+  <updated>2026-10-21T00:00:00Z</updated>
+  <author><name>un8s</name></author>
+
+  <entry>
+    <title>Runtime UI translation with a small LLM and an editable cache</title>
+    <link href="https://un8s.com/blog/llm-ui-translation/"/>
+    <id>https://un8s.com/blog/llm-ui-translation/</id>
+    <published>2026-10-21T00:00:00Z</published>
+    <updated>2026-10-21T00:00:00Z</updated>
+    <summary>A pattern for translating an application's interface without message catalogs: English strings as keys, a small model that fills a per-language cache on first use, and guards that reject bad output.</summary>
+  </entry>
+</feed>
